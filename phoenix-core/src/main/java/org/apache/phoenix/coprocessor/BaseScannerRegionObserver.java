@@ -57,8 +57,11 @@ import org.apache.phoenix.util.ScanUtil;
 import org.apache.phoenix.util.ServerUtil;
 import org.apache.phoenix.util.TransactionUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
+	private static final Logger logger = LoggerFactory.getLogger(BaseScannerRegionObserver.class);
 
     public static final String AGGREGATORS = "_Aggs";
     public static final String UNORDERED_GROUP_BY_EXPRESSIONS = "_UnorderedGroupByExpressions";
@@ -239,10 +242,16 @@ abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
                 // and region servers to crash. See https://issues.apache.org/jira/browse/PHOENIX-1596
                 // TraceScope can't be used here because closing the scope will end up calling
                 // currentSpan.stop() and that should happen only when we are closing the scanner.
+            	long start;
+            	start = System.currentTimeMillis();
                 final Span savedSpan = Trace.currentSpan();
+                System.out.println("**1 took: " + (System.currentTimeMillis() - start) + " msec");
                 final Span child = Trace.startSpan(SCANNER_OPENED_TRACE_INFO, savedSpan).getSpan();
                 try {
+                	start = System.currentTimeMillis();
                     RegionScanner scanner = doPostScannerOpen(c, scan, delegate);
+                    System.out.println("**2.1 took: " + (System.currentTimeMillis() - start) + " msec");
+                	start = System.currentTimeMillis();
                     scanner = new DelegateRegionScanner(scanner) {
                         // This isn't very obvious but close() could be called in a thread
                         // that is different from the thread that created the scanner.
@@ -257,6 +266,7 @@ abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
                             }
                         }
                     };
+                    System.out.println("**2.2 took: " + (System.currentTimeMillis() - start) + " msec");
                     this.delegate = scanner;
                     wasOverriden = true;
                     success = true;
@@ -268,7 +278,9 @@ abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
                             child.stop();
                         }
                     } finally {
+                    	start = System.currentTimeMillis();
                         Trace.continueSpan(savedSpan);
+                        System.out.println("**3 took: " + (System.currentTimeMillis() - start) + " msec");
                     }
                 }
             }
@@ -277,7 +289,7 @@ abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
             public boolean next(List<Cell> result, ScannerContext scannerContext) throws IOException {
                 overrideDelegate();
                 boolean res = super.next(result);
-                ScannerContextUtil.incrementSizeProgress(scannerContext, result);
+            	ScannerContextUtil.incrementSizeProgress(scannerContext, result);
                 ScannerContextUtil.updateTimeProgress(scannerContext);
                 return res;
             }
@@ -290,10 +302,20 @@ abstract public class BaseScannerRegionObserver extends BaseRegionObserver {
 
             @Override
             public boolean nextRaw(List<Cell> result, ScannerContext scannerContext) throws IOException {
+            	System.out.println("sysout nextraw" + result);            	
+            	long start;
+            	start = System.currentTimeMillis();
                 overrideDelegate();
+                System.out.println("*1 took: " + (System.currentTimeMillis() - start) + " msec");
+            	start = System.currentTimeMillis();
                 boolean res = super.nextRaw(result);
+                System.out.println("*2 took: " + (System.currentTimeMillis() - start) + " msec");
+            	start = System.currentTimeMillis();
                 ScannerContextUtil.incrementSizeProgress(scannerContext, result);
+                System.out.println("*3 took: " + (System.currentTimeMillis() - start) + " msec");
+            	start = System.currentTimeMillis();
                 ScannerContextUtil.updateTimeProgress(scannerContext);
+                System.out.println("*4 took: " + (System.currentTimeMillis() - start) + " msec");
                 return res;
             }
             

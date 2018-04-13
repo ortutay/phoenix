@@ -68,8 +68,17 @@ public class ScanRegionObserver extends BaseScannerRegionObserver {
 
     @Override
     protected RegionScanner doPostScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c, final Scan scan, final RegionScanner s) throws Throwable {
-        NonAggregateRegionScannerFactory nonAggregateROUtil = new NonAggregateRegionScannerFactory(c.getEnvironment(), useNewValueColumnQualifier, encodingScheme);
-        return nonAggregateROUtil.getRegionScanner(scan, s);
+    	long start;
+    	start = System.currentTimeMillis();
+        System.out.println("doPostScannerOpen");
+    	NonAggregateRegionScannerFactory nonAggregateROUtil = new NonAggregateRegionScannerFactory(c.getEnvironment(), useNewValueColumnQualifier, encodingScheme);
+        System.out.println("***1 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
+        System.out.println("nonAggregateROUtil");
+        RegionScanner regionScanner = nonAggregateROUtil.getRegionScanner(scan, s);
+        System.out.println("***2 took: " + (System.currentTimeMillis() - start) + " msec");
+        System.out.println("done");
+		return regionScanner;
     }
 
     @Override

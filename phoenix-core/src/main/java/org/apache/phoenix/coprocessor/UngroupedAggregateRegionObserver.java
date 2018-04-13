@@ -80,6 +80,8 @@ import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.io.WritableUtils;
+import org.apache.htrace.Span;
+import org.apache.htrace.Trace;
 import org.apache.phoenix.cache.ServerCacheClient;
 import org.apache.phoenix.coprocessor.MetaDataProtocol.MutationCode;
 import org.apache.phoenix.coprocessor.generated.PTableProtos;
@@ -352,10 +354,14 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
     
     @Override
     protected RegionScanner doPostScannerOpen(final ObserverContext<RegionCoprocessorEnvironment> c, final Scan scan, final RegionScanner s) throws IOException, SQLException {
+    	long start;
+    	start = System.currentTimeMillis();
         RegionCoprocessorEnvironment env = c.getEnvironment();
         Region region = env.getRegion();
         long ts = scan.getTimeRange().getMax();
         boolean localIndexScan = ScanUtil.isLocalIndex(scan);
+        System.out.println("***1 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         if (ScanUtil.isAnalyzeTable(scan)) {
             byte[] gp_width_bytes =
                     scan.getAttribute(BaseScannerRegionObserver.GUIDEPOST_WIDTH_BYTES);
@@ -365,8 +371,15 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             StatisticsCollector statsCollector = StatisticsCollectorFactory.createStatisticsCollector(
                     env, region.getRegionInfo().getTable().getNameAsString(), ts,
                     gp_width_bytes, gp_per_region_bytes);
-            return collectStats(s, statsCollector, region, scan, env.getConfiguration());
-        } else if (ScanUtil.isIndexRebuild(scan)) { return rebuildIndices(s, region, scan, env.getConfiguration()); }
+            RegionScanner collectStats = collectStats(s, statsCollector, region, scan, env.getConfiguration());
+            System.out.println("***2 took: " + (System.currentTimeMillis() - start) + " msec");
+			return collectStats;
+        } else if (ScanUtil.isIndexRebuild(scan)) {
+        	RegionScanner rebuildIndices = rebuildIndices(s, region, scan, env.getConfiguration());
+            System.out.println("***3 took: " + (System.currentTimeMillis() - start) + " msec");
+			return rebuildIndices;
+        }
+    	start = System.currentTimeMillis();
         int offsetToBe = 0;
         if (localIndexScan) {
             /*
@@ -384,6 +397,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
         byte[][] values = null;
         byte[] descRowKeyTableBytes = scan.getAttribute(UPGRADE_DESC_ROW_KEY);
         boolean isDescRowKeyOrderUpgrade = descRowKeyTableBytes != null;
+        System.out.println("***4 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         if (isDescRowKeyOrderUpgrade) {
             logger.debug("Upgrading row key for " + region.getRegionInfo().getTable().getNameAsString());
             projectedTable = deserializeTable(descRowKeyTableBytes);
@@ -418,6 +433,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
         HTable targetHTable = null;
         boolean isPKChanging = false;
         ImmutableBytesWritable ptr = new ImmutableBytesWritable();
+        System.out.println("***5 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         if (upsertSelectTable != null) {
             isUpsert = true;
             projectedTable = deserializeTable(upsertSelectTable);
@@ -434,6 +451,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             }
             emptyCF = scan.getAttribute(BaseScannerRegionObserver.EMPTY_CF);
         }
+        System.out.println("***6 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         TupleProjector tupleProjector = null;
         byte[][] viewConstants = null;
         ColumnReference[] dataColumns = IndexUtil.deserializeDataTableColumnsToJoin(scan);
@@ -450,6 +469,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
                     getWrappedScanner(c, theScanner, offset, scan, dataColumns, tupleProjector, 
                         region, indexMaintainers == null ? null : indexMaintainers.get(0), viewConstants, p, tempPtr, useQualifierAsIndex);
         } 
+        System.out.println("***7 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         
         if (j != null)  {
             theScanner = new HashJoinRegionScanner(theScanner, p, j, ScanUtil.getTenantId(scan), env, useQualifierAsIndex, useNewValueColumnQualifier);
@@ -461,6 +482,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
         boolean needToWrite = false;
         Configuration conf = env.getConfiguration();
         long flushSize = region.getTableDesc().getMemStoreFlushSize();
+        System.out.println("***8 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
 
         if (flushSize <= 0) {
             flushSize = conf.getLong(HConstants.HREGION_MEMSTORE_FLUSH_SIZE,
@@ -476,6 +499,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
         final long blockingMemStoreSize = flushSize * (
                 conf.getLong(HConstants.HREGION_MEMSTORE_BLOCK_MULTIPLIER,
                         HConstants.DEFAULT_HREGION_MEMSTORE_BLOCK_MULTIPLIER)-1) ;
+        System.out.println("***9 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
 
         boolean buildLocalIndex = indexMaintainers != null && dataColumns==null && !localIndexScan;
         if(buildLocalIndex) {
@@ -488,6 +513,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             maxBatchSizeBytes = conf.getLong(MUTATE_BATCH_SIZE_BYTES_ATTRIB,
                 QueryServicesOptions.DEFAULT_MUTATE_BATCH_SIZE_BYTES);
         }
+        System.out.println("***10 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         Aggregators aggregators = ServerAggregators.deserialize(
                 scan.getAttribute(BaseScannerRegionObserver.AGGREGATORS), conf);
         Aggregator[] rowAggregators = aggregators.getAggregators();
@@ -498,6 +525,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
         if (logger.isDebugEnabled()) {
             logger.debug(LogUtil.addCustomAnnotations("Starting ungrouped coprocessor scan " + scan + " "+region.getRegionInfo(), ScanUtil.getCustomAnnotations(scan)));
         }
+        System.out.println("***11 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         int rowCount = 0;
         final RegionScanner innerScanner = theScanner;
         boolean useIndexProto = true;
@@ -507,6 +536,8 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             indexMaintainersPtr = scan.getAttribute(PhoenixIndexCodec.INDEX_MD);
             useIndexProto = false;
         }
+        System.out.println("***12 took: " + (System.currentTimeMillis() - start) + " msec");
+    	start = System.currentTimeMillis();
         boolean acquiredLock = false;
         boolean incrScanRefCount = false;
         try {
@@ -522,14 +553,19 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             }
             region.startRegionOperation();
             acquiredLock = true;
+            int count = 0;
             synchronized (innerScanner) {
+                System.out.println("***13 took: " + (System.currentTimeMillis() - start) + " msec");
+                System.out.println("innerScanner class: " + innerScanner.getClass());
+            	start = System.currentTimeMillis();
                 do {
                     List<Cell> results = useQualifierAsIndex ? new EncodedColumnQualiferCellsList(minMaxQualifiers.getFirst(), minMaxQualifiers.getSecond(), encodingScheme) : new ArrayList<Cell>();
                     // Results are potentially returned even when the return value of s.next is false
                     // since this is an indication of whether or not there are more values after the
                     // ones returned
                     hasMore = innerScanner.nextRaw(results);
-                    if (!results.isEmpty()) {
+                    count++;
+                    if (false && !results.isEmpty()) {
                         rowCount++;
                         result.setKeyValues(results);
                         if (isDescRowKeyOrderUpgrade) {
@@ -757,6 +793,9 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
                         hasAny = true;
                     }
                 } while (hasMore);
+                System.out.println("***14 took: " + (System.currentTimeMillis() - start) + " msec");
+                System.out.println("loop count: " + count);
+            	start = System.currentTimeMillis();
                 if (!mutations.isEmpty()) {
                     commit(region, mutations, indexUUID, blockingMemStoreSize, indexMaintainersPtr, txState,
                         targetHTable, useIndexProto, isPKChanging);

@@ -87,6 +87,8 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
 
   @Override
   public RegionScanner getRegionScanner(final Scan scan, final RegionScanner s) throws Throwable {
+  	long start;
+  	start = System.currentTimeMillis();
 
     int offset = 0;
     if (ScanUtil.isLocalIndex(scan)) {
@@ -100,12 +102,16 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
           region.getRegionInfo().getEndKey().length;
       ScanUtil.setRowKeyOffset(scan, offset);
     }
+    System.out.println("****1 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     byte[] scanOffsetBytes = scan.getAttribute(BaseScannerRegionObserver.SCAN_OFFSET);
     Integer scanOffset = null;
     if (scanOffsetBytes != null) {
       scanOffset = (Integer)PInteger.INSTANCE.toObject(scanOffsetBytes);
     }
     RegionScanner innerScanner = s;
+    System.out.println("****2 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
 
     Set<KeyValueColumnExpression> arrayKVRefs = Sets.newHashSet();
     Expression[] arrayFuncRefs = deserializeArrayPostionalExpressionInfoFromScan(scan, innerScanner, arrayKVRefs);
@@ -115,6 +121,8 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
     byte[][] viewConstants = null;
     PhoenixTransactionContext tx = null;
     ColumnReference[] dataColumns = IndexUtil.deserializeDataTableColumnsToJoin(scan);
+    System.out.println("****3 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     if (dataColumns != null) {
       tupleProjector = IndexUtil.getTupleProjector(scan, dataColumns);
       dataRegion = env.getRegion();
@@ -131,6 +139,8 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
       byte[] txState = scan.getAttribute(BaseScannerRegionObserver.TX_STATE);
       tx = MutationState.decodeTransaction(txState);
     }
+    System.out.println("****4 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
 
     final TupleProjector p = TupleProjector.deserializeProjectorFromScan(scan);
     final HashJoinInfo j = HashJoinInfo.deserializeHashJoinFromScan(scan);
@@ -141,6 +151,8 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
         env.getConfiguration().get(PhoenixConfigurationUtil.SNAPSHOT_NAME_KEY) != null) {
       dataRegion = env.getRegion();
     }
+    System.out.println("****5 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     innerScanner = getWrappedScanner(env, innerScanner, arrayKVRefs, arrayFuncRefs, offset, scan, dataColumns,
         tupleProjector, dataRegion, indexMaintainer, tx, viewConstants, kvSchema, kvSchemaBitSet, j == null ? p : null,
         ptr, useQualifierAsIndex);
@@ -150,17 +162,26 @@ public class NonAggregateRegionScannerFactory extends RegionScannerFactory {
       innerScanner = new HashJoinRegionScanner(innerScanner, p, j, tenantId, env, useQualifierAsIndex,
           useNewValueColumnQualifier);
     }
+    System.out.println("****6 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     if (scanOffset != null) {
       innerScanner = getOffsetScanner(innerScanner, new OffsetResultIterator(
               new RegionScannerResultIterator(innerScanner, getMinMaxQualifiersFromScan(scan), encodingScheme), scanOffset),
           scan.getAttribute(QueryConstants.LAST_SCAN) != null);
     }
+    System.out.println("****7 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     final OrderedResultIterator iterator = deserializeFromScan(scan, innerScanner);
     if (iterator == null) {
       return innerScanner;
     }
+    System.out.println("****8 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
     // TODO:the above wrapped scanner should be used here also
-    return getTopNScanner(env, innerScanner, iterator, tenantId);
+    RegionScanner topNScanner = getTopNScanner(env, innerScanner, iterator, tenantId);
+    System.out.println("****9 took: " + (System.currentTimeMillis() - start) + " msec");
+  	start = System.currentTimeMillis();
+	return topNScanner;
   }
 
   private static OrderedResultIterator deserializeFromScan(Scan scan, RegionScanner s) {
