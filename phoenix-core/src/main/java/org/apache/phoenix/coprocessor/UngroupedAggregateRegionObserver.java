@@ -541,9 +541,20 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
             region.startRegionOperation();
             acquiredLock = true;
             long size = 0;
+            System.out.println("---- Start Phoenix Coprocessor Loop ----" + region.getTableDesc().getTableName().getNameAsString());
             synchronized (innerScanner) {
                 do {
-                    List<Cell> results = useQualifierAsIndex ? new EncodedColumnQualiferCellsList(minMaxQualifiers.getFirst(), minMaxQualifiers.getSecond(), encodingScheme) : new ArrayList<Cell>();
+                    List<Cell> results;
+                    if (useQualifierAsIndex) {
+//                        System.out.println("---- EncodedColumnQualiferCellsList ----");
+                    	results = new EncodedColumnQualiferCellsList(minMaxQualifiers.getFirst(), minMaxQualifiers.getSecond(), encodingScheme);
+                    } else { 
+//                        System.out.println("---- ArrayList<Cell>() ----");
+                    	results = new ArrayList<Cell>();
+//                        results.add(null);
+//                        results.add(null);
+//                        results.add(null);
+                    }
                     // Results are potentially returned even when the return value of s.next is false
                     // since this is an indication of whether or not there are more values after the
                     // ones returned
