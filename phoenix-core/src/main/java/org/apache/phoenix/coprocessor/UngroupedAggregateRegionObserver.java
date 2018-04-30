@@ -41,6 +41,7 @@ import java.util.concurrent.Callable;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -559,6 +560,24 @@ public class UngroupedAggregateRegionObserver extends BaseScannerRegionObserver 
                     // since this is an indication of whether or not there are more values after the
                     // ones returned
                     hasMore = innerScanner.nextRaw(results);
+                    
+//                    if (region.getTableDesc().getTableName().getNameAsString().contains("FLOAT")) {
+//                  	  System.out.println("----");
+//                  	  System.out.println("HBase gave:");
+//                  	  for (int i = 0; i < results.size(); i++) {
+//                		Cell result1 = results.get(i);
+//                		System.out.println("Cell row " + i + ": " + Hex.encodeHexString(result1.getRow()));
+//                		System.out.println("Cell CF " + i + ": " + Hex.encodeHexString(result1.getFamily()));
+//                		System.out.println("Cell CQ " + i + ": " + Hex.encodeHexString(result1.getQualifier()));
+//                		System.out.println("Cell TS " + i + ": " + result1.getTimestamp());
+//                		System.out.println("Cell type" + i + ": " + result1.getTypeByte());
+//                		System.out.println("Cell MVCC version " + i + ": " + result1.getMvccVersion());
+//                		System.out.println("Cell value " + i + ": " + Hex.encodeHexString(result1.getValue()));
+//                		System.out.println("Cell row array " + i + ": " + Hex.encodeHexString(result1.getRowArray()));
+//                  	  }
+//                  	  System.out.println("----");
+//                    }
+                    
                     if (!results.isEmpty()) {
                         rowCount++;
                         result.setKeyValues(results);

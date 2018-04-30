@@ -20,6 +20,7 @@ package org.apache.phoenix.iterate;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -173,6 +174,25 @@ public abstract class RegionScannerFactory {
       public boolean nextRaw(List<Cell> result) throws IOException {
         try {
           boolean next = s.nextRaw(result);
+          
+//      	  System.out.println("RegionScannerFactory name: " + s.getRegionInfo().getTable().getNameAsString());
+//          if (s.getRegionInfo().getTable().getNameAsString().contains("FLOAT")) {
+//          	  System.out.println("----");
+//          	  System.out.println("HBase in RegionScannerFactory gave:");
+//          	  for (int i = 0; i < result.size(); i++) {
+//        		Cell result1 = result.get(i);
+//        		System.out.println("Cell row " + i + ": " + Hex.encodeHexString(result1.getRow()));
+//        		System.out.println("Cell CF " + i + ": " + Hex.encodeHexString(result1.getFamily()));
+//        		System.out.println("Cell CQ " + i + ": " + Hex.encodeHexString(result1.getQualifier()));
+//        		System.out.println("Cell TS " + i + ": " + result1.getTimestamp());
+//        		System.out.println("Cell type" + i + ": " + result1.getTypeByte());
+//        		System.out.println("Cell MVCC version " + i + ": " + result1.getMvccVersion());
+//        		System.out.println("Cell value " + i + ": " + Hex.encodeHexString(result1.getValue()));
+//        		System.out.println("Cell row array " + i + ": " + Hex.encodeHexString(result1.getRowArray()));
+//          	  }
+//          	  System.out.println("----");
+//            }
+          
           Cell arrayElementCell = null;
           if (result.size() == 0) {
             return next;
